@@ -1,0 +1,51 @@
+{
+  "name": "blankey",
+  "version": "0.1.0",
+  "description": "Server management that lives in your terminal. Deploy, route, back up and inspect Docker Compose apps over SSH. No daemon, no database, no browser.",
+  "type": "module",
+  "bin": {
+    "blankey": "dist/bin/blankey.js",
+    "bk": "dist/bin/blankey.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "prepare": "tsc",
+    "test": "tsc && node --test dist/test/*.test.js",
+    "test:only": "node --test dist/test/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/bin/blankey.js"
+  },
+  "keywords": [
+    "docker",
+    "docker-compose",
+    "traefik",
+    "deployment",
+    "devops",
+    "cli",
+    "tui",
+    "terminal",
+    "self-hosted",
+    "paas",
+    "server-management",
+    "sysadmin",
+    "ssh",
+    "backup",
+    "homelab",
+    "reverse-proxy"
+  ],
+  "author": "Matthew Pulis",
+  "license": "MIT",
+  "main": "dist/src/cli.js",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

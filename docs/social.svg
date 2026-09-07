@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="blankey: server management that lives in your terminal">
+  <title>blankey</title>
+  <defs>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7C5CFF"/>
+      <stop offset="52%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C5CFF"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#7C5CFF" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#7C5CFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0F1524"/>
+      <stop offset="100%" stop-color="#0B0F1A"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="#0B0F1A"/>
+  <ellipse cx="210" cy="120" rx="620" ry="420" fill="url(#glowA)"/>
+  <ellipse cx="1120" cy="600" rx="620" ry="420" fill="url(#glowB)"/>
+
+  <!-- wordmark: terminal mark + name -->
+  <g transform="translate(232 138)">
+    <rect x="0" y="0" width="118" height="118" rx="26" fill="#0B0F1A" stroke="url(#frame)" stroke-width="3"/>
+    <circle cx="24" cy="23" r="4.2" fill="#F87171"/>
+    <circle cx="39" cy="23" r="4.2" fill="#FBBF24"/>
+    <circle cx="54" cy="23" r="4.2" fill="#34D399"/>
+    <line x1="0" y1="39" x2="118" y2="39" stroke="#2E3548" stroke-width="2"/>
+    <path d="M25 62 L43 76 L25 90" fill="none" stroke="#7C5CFF" stroke-width="7.5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="54" y="71" width="38" height="10" rx="5" fill="#22D3EE"/>
+  </g>
+
+  <text x="386" y="240"
+        font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace"
+        font-size="104" font-weight="700" letter-spacing="1" fill="url(#word)">blankey</text>
+
+  <text x="232" y="314"
+        font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif"
+        font-size="30" fill="#E6E9F0">Server management that lives in your terminal.</text>
+
+  <text x="232" y="360"
+        font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif"
+        font-size="21" fill="#8B93A7">Deploy · Traefik routing · S3 backups · Open on login · Zero dependencies</text>
+
+  <!-- a real command, in the app's own colours -->
+  <g transform="translate(232 422)">
+    <rect x="-24" y="-34" width="884" height="150" rx="14" fill="url(#fade)" stroke="#2E3548" stroke-width="1.5"/>
+    <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="19">
+      <text x="0" y="0" fill="#7C5CFF">❯</text>
+      <text x="26" y="0" fill="#E6E9F0">blankey status</text>
+
+      <text x="0" y="38" fill="#34D399">●</text>
+      <text x="26" y="38" fill="#E6E9F0" font-weight="700">shop-api</text>
+      <text x="170" y="38" fill="#34D399">running</text>
+      <text x="290" y="38" fill="#8B93A7">2/2</text>
+      <text x="360" y="38" fill="#60A5FA">shop.example.com</text>
+
+      <text x="0" y="72" fill="#FBBF24">●</text>
+      <text x="26" y="72" fill="#E6E9F0" font-weight="700">blog</text>
+      <text x="170" y="72" fill="#FBBF24">restarting</text>
+      <text x="290" y="72" fill="#8B93A7">0/1</text>
+      <text x="360" y="72" fill="#60A5FA">blog.example.com</text>
+
+      <text x="0" y="106" fill="#34D399">●</text>
+      <text x="26" y="106" fill="#E6E9F0" font-weight="700">landing</text>
+      <text x="170" y="106" fill="#34D399">running</text>
+      <text x="290" y="106" fill="#8B93A7">1/1</text>
+      <text x="360" y="106" fill="#60A5FA">example.com</text>
+    </g>
+  </g>
+</svg>
