@@ -59,6 +59,16 @@ export const DEFAULTS = {
       pathStyle: false,
     },
   },
+  // Noticing that a newer blankey exists. Distinct from a repo's own
+  // `updates: false`, which is about pulling that project, not this tool.
+  selfUpdate: {
+    check: true,
+    // `owner/name` on GitHub. Blank turns checking off entirely.
+    repo: 'matpulis/blankey',
+    // Where install.sh is served from. Derived from `repo` when left blank.
+    installUrl: '',
+    everyHours: 24,
+  },
   ignore: ['.git', 'node_modules', 'lost+found'],
   projects: {},
 };
@@ -184,6 +194,7 @@ export function normalize(cfg) {
   c.traefik.entrypoints = { ...DEFAULTS.traefik.entrypoints, ...(c.traefik.entrypoints || {}) };
   if (!c.traefik.dashboardHost && c.domain) c.traefik.dashboardHost = `traefik.${c.domain}`;
   c.defaults = { ...DEFAULTS.defaults, ...(c.defaults || {}) };
+  c.selfUpdate = { ...DEFAULTS.selfUpdate, ...(c.selfUpdate || {}) };
   c.backup = resolveBackup(c);
   c.backup.dir = expandHome(c.backup.dir) || host.join(c.projectsDir, '.blankey', 'backups');
   c.ignore = Array.isArray(c.ignore) ? c.ignore : DEFAULTS.ignore;

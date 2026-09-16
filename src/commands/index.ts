@@ -11,6 +11,7 @@ import clean from './clean.js';
 import backupCmd from './backup.js';
 import { init, adopt, create } from './init.js';
 import watch from './watch.js';
+import update from './update.js';
 import autostart from './autostart.js';
 import menu from './menu.js';
 import type { CommandDef } from '../types.js';
@@ -51,6 +52,7 @@ export const commands: CommandDef[] = [
   adopt,
   create,
   autostart,
+  update,
   completion,
 ];
 

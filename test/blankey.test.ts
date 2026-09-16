@@ -890,9 +890,20 @@ test('tui: only genuinely interactive actions take over the terminal', async () 
     .map((i: any) => i.label)
     .sort();
 
-  // Everything else renders inside the program. These four read keys of their
-  // own, so they need the real terminal.
-  assert.deepEqual(terminal, ['Live dashboard', 'Open a shell', 'Proxy logs', 'Watch logs']);
+  // Everything else renders inside the program. These read keys of their own,
+  // except the updater, which hands over so the installer it runs has a real
+  // terminal for its output and for sudo to ask for a password on.
+  assert.deepEqual(terminal, [
+    'Live dashboard', 'Open a shell', 'Proxy logs', 'Update blankey', 'Watch logs',
+  ]);
+
+  // Handing the terminal over normally returns the instant the command ends.
+  // Anything whose output is worth reading afterwards has to say so.
+  const paused = (MENU as any[])
+    .flatMap((g) => g.items)
+    .filter((i: any) => i.pauseAfter)
+    .map((i: any) => i.label);
+  assert.deepEqual(paused, ['Update blankey']);
 });
 
 test('tui: every menu entry points at a real command', async () => {
@@ -1753,4 +1764,111 @@ test('autostart: shell family detection picks fish out', async () => {
   assert.equal(shellFamily('/bin/bash'), 'posix');
   assert.equal(shellFamily('/bin/zsh'), 'posix');
   assert.equal(shellFamily(''), 'posix');
+});
+
+// ------------------------------------------------------------------ updates
+
+test('update: version comparison handles the traps', async () => {
+  const { isNewer, compareVersions } = await import('../src/update.js');
+
+  assert.equal(isNewer('0.2.0', '0.1.0'), true);
+  assert.equal(isNewer('0.1.0', '0.1.0'), false);
+  assert.equal(isNewer('0.1.0', '0.2.0'), false);
+  // A `v` prefix on the tag must not make it look different.
+  assert.equal(isNewer('v1.0.0', '0.9.9'), true);
+  // Numeric, not lexical: "1.10.0" < "1.9.0" as strings.
+  assert.equal(isNewer('1.10.0', '1.9.0'), true);
+  assert.equal(compareVersions('1.9.0', '1.10.0'), -1);
+  // A release beats its own prereleases, and prereleases order among themselves.
+  assert.equal(isNewer('1.0.0', '1.0.0-beta.1'), true);
+  assert.equal(isNewer('1.0.0-beta.1', '1.0.0'), false);
+  assert.equal(isNewer('1.0.0-beta.2', '1.0.0-beta.1'), true);
+  // Anything unparseable offers nothing rather than guessing.
+  assert.equal(isNewer('not-a-version', '0.1.0'), false);
+  assert.equal(isNewer('0.2.0', 'not-a-version'), false);
+});
+
+test('update: a repo can be given as owner/name or as any GitHub URL', async () => {
+  const { normalizeRepo } = await import('../src/update.js');
+  for (const input of [
+    'you/blankey',
+    'https://github.com/you/blankey',
+    'https://github.com/you/blankey.git',
+    'http://www.github.com/you/blankey/',
+    'git@github.com:you/blankey.git',
+  ]) {
+    assert.equal(normalizeRepo(input), 'you/blankey', input);
+  }
+  assert.equal(normalizeRepo(''), '');
+  assert.equal(normalizeRepo(undefined), '');
+});
+
+test('update: the shipped default points at where blankey is distributed from', async () => {
+  const { DEFAULTS } = await import('../src/config.js');
+  const { updateSettings, normalizeRepo } = await import('../src/update.js');
+
+  // Wired to the real repository, so a fresh install notices releases without
+  // being configured first. Blanking `repo` is what turns checking off.
+  assert.equal(normalizeRepo(DEFAULTS.selfUpdate.repo), 'matpulis/blankey');
+  assert.equal(updateSettings(DEFAULTS).enabled, true);
+
+  // The install command it would run has to point at the same place.
+  const { upgradePlan } = await import('../src/update.js');
+  const plan = upgradePlan(DEFAULTS, 'v9.9.9');
+  assert.ok(plan.command!.includes('matpulis/blankey'), plan.command);
+});
+
+test('update: checking is off when no repo is configured, and can be turned off', async () => {
+  const { updateSettings } = await import('../src/update.js');
+
+  // An explicitly blank repo means nothing reaches the network.
+  assert.equal(updateSettings({}).enabled, false);
+  assert.equal(updateSettings({ selfUpdate: { repo: '' } }).enabled, false);
+
+  const on = updateSettings({ selfUpdate: { repo: 'you/blankey' } });
+  assert.equal(on.enabled, true);
+  assert.equal(on.repo, 'you/blankey');
+  // installUrl is derived from the repo when it is not spelled out.
+  assert.match(on.installUrl, /raw\.githubusercontent\.com\/you\/blankey\/.*install\.sh$/);
+
+  assert.equal(updateSettings({ selfUpdate: { repo: 'you/blankey', check: false } }).enabled, false);
+
+  const custom = updateSettings({ selfUpdate: { repo: 'you/blankey', installUrl: 'https://blankey.sh/install.sh' } });
+  assert.equal(custom.installUrl, 'https://blankey.sh/install.sh');
+});
+
+test('update: the cache goes stale on a schedule', async () => {
+  const { isStale } = await import('../src/update.js');
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.parse('2026-09-16T12:00:00Z');
+  const at = (iso: string) => ({ checkedAt: iso, latest: 'v1.0.0', url: null, publishedAt: null });
+
+  assert.equal(isStale(null, day, now), true, 'never checked');
+  assert.equal(isStale(at('2026-09-16T11:00:00Z'), day, now), false, 'an hour ago');
+  assert.equal(isStale(at('2026-09-15T11:00:00Z'), day, now), true, 'over a day ago');
+  assert.equal(isStale(at('nonsense'), day, now), true, 'unreadable timestamp');
+});
+
+test('update: the upgrade command pins the release and never invents a source', async () => {
+  const { upgradePlan } = await import('../src/update.js');
+
+  const none = upgradePlan({ selfUpdate: {} }, 'v0.4.2');
+  assert.equal(none.ok, false);
+  assert.match(String(none.reason), /installUrl|repo/);
+
+  const plan = upgradePlan({ selfUpdate: { repo: 'you/blankey' } }, 'v0.4.2');
+  assert.equal(plan.ok, true);
+  assert.match(plan.command!, /^curl -fsSL https:\/\/raw\.githubusercontent\.com\/you\/blankey\//);
+  // Pinned, so an upgrade installs the version it just showed you.
+  assert.match(plan.command!, /--ref v0\.4\.2$/);
+
+  // A bare version still becomes a v-prefixed tag.
+  assert.match(upgradePlan({ selfUpdate: { repo: 'a/b' } }, '1.2.3').command!, /--ref v1\.2\.3$/);
+});
+
+test('update: the running version comes from package.json, not a second copy', async () => {
+  const { VERSION } = await import('../src/cli.js');
+  // Two levels up: this runs from dist/test/.
+  const pkg = JSON.parse(await fs.readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(VERSION, pkg.version);
 });

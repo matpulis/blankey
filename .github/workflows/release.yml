@@ -1,0 +1,66 @@
+name: release
+
+# Pushing a v-tag is the whole release process. Everything below is what has
+# to hold before that tag becomes something people can install.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # --generate-notes diffs against the previous tag, which needs more
+          # than the single commit a shallow clone would give it.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # blankey compares the version it is running against the newest release
+      # tag. If the two ever drift, every installed copy offers an "update"
+      # that reinstalls the identical build, and keeps offering it.
+      - name: Tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${pkg}"
+            echo "Either retag as v${pkg}, or run: npm version ${tag}"
+            exit 1
+          fi
+          echo "v${pkg}"
+
+      - run: npm ci
+
+      - run: npm test
+
+      # A broken installer is worse than a broken build: it is the thing people
+      # pipe into a shell as root.
+      - name: Installer is valid POSIX sh
+        run: |
+          sh -n install.sh
+          sudo apt-get install -y -qq dash
+          dash -n install.sh
+
+      # `curl | sh` has no script on disk and no arguments, which is its own
+      # code path and has broken before now.
+      - name: The piped one-liner still resolves a source
+        run: cat install.sh | sh -s -- --dry-run
+
+      # Published with the GitHub CLI that is already on the runner, rather
+      # than a third-party action, so releasing pulls in nothing new.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes

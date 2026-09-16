@@ -1,16 +1,29 @@
 import process from 'node:process';
+import { createRequire } from 'node:module';
 import { parseArgs } from './args.js';
 import { loadConfig, requireConfig } from './config.js';
 import { createContext } from './context.js';
 import * as host from './host.js';
-import { setLevel, c, gradient, P, badge, pad, width } from './ui/colors.js';
+import { setLevel, c, gradient, P, badge, pad, width, bold, fg } from './ui/colors.js';
 import { banner } from './ui/box.js';
 import { S } from './ui/symbols.js';
 import { log, setQuiet, setVerbose } from './ui/log.js';
 import { commands, findCommand } from './commands/index.js';
 import { levenshtein } from './util.js';
 
-export const VERSION = '0.1.0';
+/**
+ * Read from package.json rather than written here twice. An update check that
+ * compares against a stale constant would offer upgrades you already have, or
+ * miss ones you do not.
+ */
+export const VERSION: string = (() => {
+  try {
+    const require = createRequire(import.meta.url);
+    return String(require('../../package.json').version || '0.0.0');
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 const GLOBAL_VALUE_FLAGS = ['config', 'projectsDir', 'host', 'stack', 'env'];
 const GLOBAL_ALIASES = {
@@ -83,7 +96,30 @@ export async function main(argv) {
 
   const ctx = createContext({ cfg, flags, positional: positional.slice(1), passthrough });
   const code = await command.run(ctx);
+
+  // After the work, never before it: the check reads a cache written by a
+  // previous run, and any refresh it starts outlives this process.
+  if (command.name !== 'update') await announceUpdate(cfg, flags);
+
   return typeof code === 'number' ? code : 0;
+}
+
+async function announceUpdate(cfg, flags): Promise<void> {
+  try {
+    const { noticeUpdate } = await import('./update.js');
+    const release = await noticeUpdate(cfg, VERSION, {
+      json: Boolean(flags.json),
+      quiet: Boolean(flags.quiet),
+    });
+    if (!release) return;
+    log.blank();
+    log.raw(`  ${fg(P.info, S.up)} ${c.muted('blankey')} ${bold(release.version)} ${c.muted('is available')}` +
+      c.faint(`  you have v${VERSION}`));
+    log.raw(`  ${c.faint(S.arrow)} ${c.muted('blankey update')}${release.url ? c.faint('   ' + release.url) : ''}`);
+    log.blank();
+  } catch {
+    // Telling someone about a new version must never break the command they ran.
+  }
 }
 
 

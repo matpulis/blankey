@@ -8,10 +8,11 @@
 </p>
 
 <p align="center">
+  <img src="https://github.com/matpulis/blankey/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/license-MIT-7C5CFF?style=flat-square" alt="MIT licence">
   <img src="https://img.shields.io/badge/node-%E2%89%A5%2018.17-22D3EE?style=flat-square" alt="Node 18.17+">
   <img src="https://img.shields.io/badge/runtime%20deps-0-34D399?style=flat-square" alt="Zero runtime dependencies">
-  <img src="https://img.shields.io/badge/tests-107%20passing-34D399?style=flat-square" alt="107 tests">
+  <img src="https://img.shields.io/badge/tests-113%20passing-34D399?style=flat-square" alt="113 tests">
   <img src="https://img.shields.io/badge/PRs-welcome-F472B6?style=flat-square" alt="PRs welcome">
 </p>
 
@@ -54,7 +55,7 @@ own idea of what an app is, its own thing to keep running and upgrade. blankey d
 
 ## Contents
 
-- [Install](#install) · [First run](#first-run) · [Open on login](#open-on-login)
+- [Install](#install) · [First run](#first-run) · [Open on login](#open-on-login) · [Updates](#staying-up-to-date)
 - [The interactive program](#the-interactive-program)
 - **Deploying**: [the pipeline](#the-deploy-pipeline) · [updating](#updating-without-deploying) · [pinning and rollback](#pinning-and-rolling-back) · [one-shot deploys](#one-shot-deploys)
 - **Routing**: [Traefik](#traefik) · [routing without touching the repo](#routing-without-touching-the-repo) · [SSL configurations](#ssl-configurations)
@@ -67,7 +68,7 @@ own idea of what an app is, its own thing to keep running and upgrade. blankey d
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/you/blankey/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/matpulis/blankey/main/install.sh | sh
 ```
 
 That is the whole thing, on **any Linux distribution**. It installs Node if the box does not have a
@@ -77,7 +78,7 @@ To have it open every time you log in, add `--autostart`. Piped into `sh`, flags
 front of them:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/you/blankey/main/install.sh | sh -s -- --autostart
+curl -fsSL https://raw.githubusercontent.com/matpulis/blankey/main/install.sh | sh -s -- --autostart
 ```
 
 <details>
@@ -87,8 +88,8 @@ Piping a remote script into `sh` runs whatever happens to be at that URL, as you
 it needs root. That deserves a minute of scepticism on any project, including this one:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/you/blankey/main/install.sh -o install.sh
-less install.sh              # 375 lines of POSIX sh, no minification, no base64
+curl -fsSL https://raw.githubusercontent.com/matpulis/blankey/main/install.sh -o install.sh
+less install.sh              # ~410 lines of POSIX sh, no minification, no base64
 sh install.sh --dry-run      # says exactly what it would do, changes nothing
 sh install.sh
 ```
@@ -104,7 +105,7 @@ curl -fsSL .../install.sh | sh -s -- --dry-run
 Or clone it and install from the checkout, which is also what you want for hacking on it:
 
 ```sh
-git clone https://github.com/you/blankey.git /opt/blankey
+git clone https://github.com/matpulis/blankey.git /opt/blankey
 sh /opt/blankey/install.sh
 ```
 
@@ -115,6 +116,7 @@ musl systems (Alpine), where the distribution's own package is the only one that
 | flag | |
 |---|---|
 | `--from <src>` | install from a git URL, a `.tar.gz` URL, or a local checkout |
+| `BLANKEY_REPO` | env: where to clone from when the script is not inside a checkout |
 | `--ref <name>` | branch or tag to install, when fetching the source |
 | `--autostart` | open blankey on login once installed |
 | `--kiosk` | with `--autostart`, quitting blankey ends the session |
@@ -208,6 +210,49 @@ opened *from inside* blankey opening blankey again.
 your current session open and test with a second one.
 
 ---
+
+## Staying up to date
+
+blankey mentions a new release on its own, after a command rather than before it:
+
+```
+  ↑ blankey v0.4.2 is available  you have v0.1.0
+  → blankey update   https://github.com/matpulis/blankey/releases/tag/v0.4.2
+```
+
+`blankey update` shows what changed, then offers to install it. Saying yes re-runs the installer
+pinned to that release, which is the same thing you would type by hand:
+
+```sh
+blankey update           # check, then offer to install
+blankey update --check   # report only, exits 1 when an update is available
+blankey update -y        # install without asking
+```
+
+Point it at wherever releases are published, and it follows that repository's GitHub releases:
+
+```yaml
+selfUpdate:
+  repo: matpulis/blankey    # or the full https://github.com/matpulis/blankey URL
+```
+
+`repo` defaults to where blankey is distributed from, so this works out of the box. Blanking it
+turns checking off entirely: no repository means no check, which means no network call.
+
+### It never costs you anything
+
+The check runs at most once a day, in a **detached background process** that this one does not wait
+for. What you see comes from a cache the *previous* run wrote, so a command never waits on the
+network, even the first time, even with no connectivity at all. A failed check is silent.
+
+It also stays out of the way of anything mechanical: nothing is printed with `--json` or `--quiet`,
+or when output is not a terminal, and in those cases no check is started either. So a cron line or a
+pipeline neither phones home nor gets unexpected text in its output.
+
+Turn it off entirely with `selfUpdate.check: false`, or `BLANKEY_NO_UPDATE_CHECK=1` for one run.
+
+Upgrading is the one thing it will not do quietly. `blankey update` shows the exact command before
+running it, and asks first, because installing is `curl | sh` with root.
 
 ## The interactive program
 
@@ -734,6 +779,7 @@ read locally.
 | `clean`, `prune`, `gc` | show what disk can be reclaimed, then reclaim it |
 | `config` | show the resolved configuration |
 | `autostart`, `login` | open blankey on login, and take it back off |
+| `update`, `upgrade` | check for a newer blankey, and install it |
 | `init` `adopt` `new` `completion` | setup |
 
 Every command takes `--help`. Most take `--json`.
@@ -807,6 +853,12 @@ backup:
     accessKeyId: ''                 # better via BLANKEY_S3_ACCESS_KEY_ID
     secretAccessKey: ''             # better via BLANKEY_S3_SECRET_ACCESS_KEY
 
+selfUpdate:
+  check: true                 # notice new releases (needs repo below)
+  repo: matpulis/blankey      # owner/name on GitHub; blank turns checking off
+  installUrl: ''               # defaults to install.sh in that repo
+  everyHours: 24              # how often the background check may run
+
 ignore: [.git, node_modules, lost+found]
 
 projects:                     # per-project overrides, keyed by directory name
@@ -820,9 +872,30 @@ Config is looked up in this order: `--config`, `$BLANKEY_CONFIG`, `./blankey.yml
 `~/.config/blankey/config.yml`, `/etc/blankey/config.yml`.
 
 **Environment variables:** `BLANKEY_CONFIG` · `BLANKEY_S3_ACCESS_KEY_ID` ·
-`BLANKEY_S3_SECRET_ACCESS_KEY` · `BLANKEY_NO_AUTOSTART` · `BLANKEY_COLOR` · `NO_COLOR`
+`BLANKEY_S3_SECRET_ACCESS_KEY` · `BLANKEY_NO_AUTOSTART` · `BLANKEY_NO_UPDATE_CHECK` · `BLANKEY_GITHUB_API` · `BLANKEY_COLOR` · `NO_COLOR`
 
 ---
+
+## Releasing
+
+Pushing a `v` tag is the whole release process. `.github/workflows/release.yml` does the rest:
+
+```sh
+npm version 0.2.0        # bumps package.json and the lockfile, and tags
+git push --follow-tags
+```
+
+Before it publishes anything, the workflow checks that **the tag matches `package.json`**. That
+guard exists because of how the update checker works: if the two drift, every installed copy is
+told an update is available, installs the identical build, and is told again the next day.
+
+It then runs the tests, parses `install.sh` with both `sh` and `dash`, and pipes it through
+`sh -s -- --dry-run` to prove the `curl | sh` path still resolves a source. Only then does it cut
+the release, using the `gh` CLI already on the runner rather than a third-party action.
+
+`ci.yml` runs the same tests on every push and pull request, on **Node 18.17 and 22**. The oldest
+one is the point: `tsconfig` targets a newer library than 18.17 ships, so only actually running it
+catches an API that is too new for the minimum the installer promises.
 
 ## Hosting the one-liner
 
@@ -856,9 +929,9 @@ Contributions are welcome. The codebase is small, typed throughout and has no ru
 Please keep it that way.
 
 ```sh
-git clone https://github.com/you/blankey.git && cd blankey
+git clone https://github.com/matpulis/blankey.git && cd blankey
 npm install         # installs TypeScript and builds
-npm test            # build, then 107 unit tests, no Docker required
+npm test            # build, then 113 unit tests, no Docker required
 npm run test:only   # tests without rebuilding
 npm run typecheck   # tsc --noEmit
 npm run build:watch # rebuild on change

@@ -66,6 +66,8 @@ export interface MenuAction {
    * view. Everything else stays inside the program.
    */
   needsTerminal?: boolean;
+  /** Hold the screen after it finishes, so its output can actually be read. */
+  pauseAfter?: boolean;
 }
 
 export interface MenuSeparator {
@@ -208,6 +210,17 @@ const MENU: MenuGroup[] = [
       { label: 'Open on login', command: 'autostart', positional: ['status'], about: 'Whether logging in over SSH drops straight into blankey, and where that is configured.' },
       { label: 'Turn on open-on-login', command: 'autostart', positional: ['enable'], confirmFirst: 'Open blankey automatically when you log in?', about: 'Adds a guarded block to your login file. You cannot lock yourself out: `ssh user@host bash` always bypasses it and gives you a plain shell.' },
       { label: 'Turn off open-on-login', command: 'autostart', positional: ['disable'], about: 'Puts the login file back the way it was.' },
+      { separator: 'blankey itself' },
+      {
+        label: 'Update blankey',
+        command: 'update',
+        // The installer wants a real terminal, both for its own output and so
+        // sudo has somewhere to ask for a password.
+        needsTerminal: true,
+        pauseAfter: true,
+        confirmFirst: 'Check for a newer blankey, and install it if one is out?',
+        about: 'Asks the release feed for the newest version. If there is one, it re-runs the installer pinned to that release. Your projects, containers and configuration are not touched.',
+      },
       { separator: '' },
       { label: 'All settings', action: 'settings', about: 'Every option, including Traefik and Backups, in one place. Nothing is written until you save.' },
       { label: 'Run setup again', action: 'setup' },
@@ -587,6 +600,7 @@ async function runItem(
     title: item.label,
     breadcrumb,
     terminal: item.needsTerminal,
+    pause: item.pauseAfter,
   });
   return routingChanged ? { reloadConfig: routingChanged } : null;
 }
@@ -750,6 +764,8 @@ interface RunOptions {
   breadcrumb?: string[];
   /** Give the command the real terminal rather than a panel. */
   terminal?: boolean;
+  /** Wait for a keypress before reclaiming the screen, so output can be read. */
+  pause?: boolean;
 }
 
 /**
@@ -761,7 +777,7 @@ async function runCommand(
   screen: any,
   cfg: Config,
   name: string,
-  { positional = [], flags = {}, title, breadcrumb = [], terminal = false }: RunOptions = {},
+  { positional = [], flags = {}, title, breadcrumb = [], terminal = false, pause = false }: RunOptions = {},
 ): Promise<number | undefined> {
   const command = findCommand(name);
   if (!command) return 1;
@@ -777,7 +793,8 @@ async function runCommand(
   }
 
   // Self-terminating by nature (a shell exits, Ctrl+C stops a followed log), so
-  // there is nothing to prompt about on the way back.
+  // there is usually nothing to prompt about on the way back. An installer that
+  // just printed why it failed is the exception, hence .
   return screen.suspend(async () => {
     try {
       return await command.run(ctx);
@@ -786,7 +803,7 @@ async function runCommand(
       process.stderr.write(`\n${c.err('That failed:')} ${e?.message || e}\n`);
       return 1;
     }
-  }, { pause: false });
+  }, { pause });
 }
 
 const metaFor = (cfg: Config): string => `${cfg.projectsDir}   ${S.bullet}   ${cfg.ssh?.host || 'local docker'}`;

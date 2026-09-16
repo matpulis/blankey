@@ -43,6 +43,14 @@
   ],
   "author": "Matthew Pulis",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matpulis/blankey.git"
+  },
+  "homepage": "https://github.com/matpulis/blankey#readme",
+  "bugs": {
+    "url": "https://github.com/matpulis/blankey/issues"
+  },
   "main": "dist/src/cli.js",
   "devDependencies": {
     "@types/node": "^22.10.2",

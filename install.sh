@@ -3,7 +3,7 @@
 #
 #   curl -fsSL .../install.sh | sh
 #   sh install.sh --autostart
-#   sh install.sh --from https://github.com/you/blankey.git
+#   sh install.sh --from https://github.com/matpulis/blankey.git
 #
 # Deliberately POSIX sh with no bashisms, because the shell on a fresh server
 # is as likely to be dash or busybox ash as it is to be bash.
@@ -17,8 +17,9 @@ NODE_MAJOR="${NODE_MAJOR:-22}"
 NODE_FALLBACK="${NODE_FALLBACK:-22.11.0}"
 
 # Where the source comes from when this is not run from inside a checkout,
-# which is exactly the case for `curl ... | sh`.
-REPO="${BLANKEY_REPO:-https://github.com/you/blankey.git}"
+# which is exactly the case for `curl ... | sh`. Forked it? Change this, or
+# pass --from, or set BLANKEY_REPO.
+REPO="${BLANKEY_REPO:-https://github.com/matpulis/blankey.git}"
 REF="${BLANKEY_REF:-}"
 
 SOURCE="${BLANKEY_SOURCE:-}"
@@ -54,7 +55,7 @@ blankey installer
   sh install.sh --from ./blankey
 
   --from <src>     install from a git URL, a .tar.gz URL, or a local checkout
-                   (default: this checkout, or the blankey repository)
+                   (default: the checkout this script sits in, else BLANKEY_REPO)
   --ref <name>     branch or tag to install, when fetching the source
   --autostart      open blankey automatically on login once installed
   --kiosk          with --autostart, end the session when blankey exits
@@ -246,10 +247,43 @@ is_checkout() {
 
 # Run from a checkout, install that. Otherwise fetch the source, which is what
 # makes the piped one-liner work.
+# Reports failure rather than calling die, because every caller reads it
+# through $(...) and `exit` inside a command substitution only leaves the
+# subshell: the script would print the error and carry on regardless.
 resolve_source() {
-  if [ -n "$SOURCE" ]; then echo "$SOURCE"; return; fi
-  if here=$(script_dir) && is_checkout "$here"; then echo "$here"; return; fi
-  echo "$REPO"
+  if [ -n "$SOURCE" ]; then echo "$SOURCE"; return 0; fi
+  if here=$(script_dir) && is_checkout "$here"; then echo "$here"; return 0; fi
+  if [ -n "$REPO" ]; then echo "$REPO"; return 0; fi
+  return 1
+}
+
+no_source() {
+  die "nothing to install from.
+    This script is not inside a blankey checkout, and no source is set.
+      sh install.sh --from /path/to/blankey
+      sh install.sh --from https://github.com/OWNER/REPO.git
+      BLANKEY_REPO=https://github.com/OWNER/REPO.git sh install.sh
+    Publishing this? Set REPO near the top of the file instead, so the
+    one-liner works with no arguments."
+}
+
+# Clone without ever asking for credentials.
+#
+# Redirecting stdin is not enough: git reads a username straight from the
+# terminal, so an unattended install would sit on a prompt nobody is there to
+# answer. GitHub also answers identically for a private repository and one
+# that does not exist, so a typo in the URL arrives as a password prompt
+# rather than as a 404.
+clone_source() {
+  if [ -n "$REF" ]; then
+    # Cloning a tag lands on a detached HEAD, which git explains at length.
+    # That is expected here and only noise in an installer.
+    GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c advice.detachedHead=false \
+      clone --depth 1 --branch "$REF" --quiet "$1" "$2" </dev/null
+  else
+    GIT_TERMINAL_PROMPT=0 git -c credential.helper= \
+      clone --depth 1 --quiet "$1" "$2" </dev/null
+  fi
 }
 
 # Build in the checkout, pack it, install the tarball. Packing runs the build
@@ -271,21 +305,22 @@ build_and_install() {
 }
 
 install_blankey() {
-  src=$(resolve_source)
+  src=$(resolve_source) || no_source
 
   case "$src" in
     *.git|git@*|git+*)
       have git || pkg_install git || die "git is required to install from $src"
       tmp=$(mktemp -d)
       step "Cloning $src${REF:+ at $REF}"
-      # stdin is closed on everything below: when this script arrives through a
-      # pipe, stdin *is* the script, and a child that reads it eats the rest.
-      if [ -n "$REF" ]; then
-        git clone --depth 1 --branch "$REF" --quiet "$src" "$tmp/blankey" </dev/null \
-          || die "clone failed: $src at $REF"
-      else
-        git clone --depth 1 --quiet "$src" "$tmp/blankey" </dev/null \
-          || die "clone failed: $src"
+      if ! clone_source "$src" "$tmp/blankey"; then
+        rm -rf "$tmp"
+        die "could not clone $src${REF:+ at $REF}
+    GitHub answers the same way for a repository that is private and one that
+    does not exist, so a wrong URL looks like an authentication problem.
+    Check it resolves:  git ls-remote $src
+    Point somewhere else:
+      sh install.sh --from /path/to/blankey
+      BLANKEY_REPO=https://github.com/OWNER/REPO.git sh install.sh${REF:+ --ref $REF}"
       fi
       build_and_install "$tmp/blankey"
       rm -rf "$tmp"
@@ -314,7 +349,8 @@ note "$(distro_name)  $(uname -m)"
 
 if [ "$DRY_RUN" = "1" ]; then
   step "Dry run, nothing will be changed"
-  note "source     $(resolve_source)${REF:+  ref $REF}"
+  src=$(resolve_source) || no_source
+  note "source     $src${REF:+  ref $REF}"
   note "arch       $(detect_arch)$(is_musl && echo '  (musl)')"
   if node_ok; then
     note "node       $(node -v) already installed"

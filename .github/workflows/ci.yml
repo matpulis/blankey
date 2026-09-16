@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest version package.json claims to support, and the one the
+        # installer actually puts on a server. tsconfig targets a newer lib
+        # than 18.17 has, so only running it catches an API that is too new.
+        node: ['18.17', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  installer:
+    name: installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The shell on a fresh server is as likely to be dash as bash, so the
+      # installer is checked against both rather than assuming bashisms work.
+      - name: Parses as POSIX sh and as dash
+        run: |
+          sh -n install.sh
+          sudo apt-get install -y -qq dash
+          dash -n install.sh
+
+      - name: The piped one-liner reaches its plan
+        run: cat install.sh | sh -s -- --dry-run
+
+      - name: Arguments survive the pipe
+        run: |
+          out="$(cat install.sh | sh -s -- --dry-run --autostart --ref v9.9.9)"
+          echo "$out"
+          echo "$out" | grep -q 'ref v9.9.9' || { echo '::error::--ref was lost'; exit 1; }
+          echo "$out" | grep -q 'autostart  yes' || { echo '::error::--autostart was lost'; exit 1; }
+
+      # Advisory: shellcheck is worth reading, but its style rules should not
+      # be able to block a release on their own.
+      - name: shellcheck
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y -qq shellcheck
+          shellcheck -s sh install.sh
